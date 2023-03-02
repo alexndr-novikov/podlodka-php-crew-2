@@ -7,6 +7,8 @@ tls:
 	mkcert -cert-file .docker/traefik/certs/local-cert.pem -key-file .docker/traefik/certs/local-key.pem "podlodka.localhost" "*.podlodka.localhost" && mkcert -install
 up:
 	docker-compose up -d
+down:
+	docker-compose down --volumes
 build:
 	 docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -f .docker/php/Dockerfile .
 lint:

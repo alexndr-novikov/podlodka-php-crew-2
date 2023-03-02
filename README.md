@@ -47,3 +47,8 @@ make mail
 ```bash
 make pdf
 ```
+
+#### To turn off the local setup, run:
+```bash
+make down
+```
