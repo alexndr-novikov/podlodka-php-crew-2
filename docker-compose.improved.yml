@@ -1,0 +1,7 @@
+version: "3.8"
+
+services:
+  php:
+    image: ${PHP_IMAGE}:${PHP_TAG}
+    volumes:
+      - ./app:/app/app

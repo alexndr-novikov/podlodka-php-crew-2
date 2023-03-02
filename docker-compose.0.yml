@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  application:
+    depends_on:
+      - postgres
+      - gotenberg
+      - redis
+      - minio
+    ports:
+      - "8090:8090"
+    build:
+      dockerfile: .docker/php/Dockerfile
+      context: ./
+      target: app_php
+    command: "/app/rr serve -c .rr.yaml"
+
+  cron:
+    depends_on:
+      - postgres
+      - gotenberg
+      - redis
+      - minio
+    build:
+      dockerfile: .docker/php/Dockerfile
+      context: ./
+      target: app_php
+    command: supercronic /etc/supercronic/podlodka
+
+  postgres:
+    image: postgres:15.2-alpine3.17
+
+  gotenberg:
+    image: thecodingmachine/gotenberg:7.8
+
+  redis:
+    image: redis:7-alpine
+
+  minio:
+    image: minio/minio:RELEASE.2021-06-09T18-51-39Z

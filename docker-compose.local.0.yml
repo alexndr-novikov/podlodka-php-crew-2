@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  application:
+    build:
+      target: app_php_dev
+    expose:
+      - 9000
+    volumes:
+      - ./app:/app/app
+      - ./vendor:/app/vendor
+      - ./runtime:/app/runtime
+
+  cron:
+    build:
+      target: app_php_dev
+    volumes:
+      - ./app:/app/app
+      - ./vendor:/app/vendor
+      - ./runtime:/app/runtime
+

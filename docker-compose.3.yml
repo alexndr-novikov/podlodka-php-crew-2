@@ -1,0 +1,81 @@
+version: "3.8"
+
+# possible since 3.4
+x-php:
+  &php
+  build:
+    dockerfile: .docker/php/Dockerfile
+    context: ./
+    target: app_php
+  environment:
+    DB_HOST: ${DB_HOST:?provide db host to .env}
+    DB_NAME: ${POSTGRES_DB:?provide db name to .env}
+    DB_USER: ${POSTGRES_USER:?provide db user to .env}
+    S3_KEY: ${AWS_KEY:?Provide access key to env}
+    S3_SECRET: ${AWS_SECRET:?Provide secret key to env}
+    DB_PASSWORD: ${POSTGRES_PASSWORD:?provide db password to .env}
+  env_file:
+    - .app.env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+    gotenberg:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  application:
+    <<: *php
+    command: "/app/rr serve -c .rr.yaml"
+    healthcheck:
+      test: [ 'CMD-SHELL', 'wget --spider -q "http://127.0.0.1:8082/health?plugin=http&plugin=rpc"' ]
+      interval: 2s
+      timeout: 2s
+
+  cron:
+    <<: *php
+    container_name: cron
+    command: supercronic /etc/supercronic/podlodka
+
+  postgres:
+    image: postgres:15.2-alpine3.17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?provide db name to .env}
+      POSTGRES_USER: ${POSTGRES_USER:?provide db user to .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?provide db password to .env}
+    healthcheck:
+      test: pg_isready -d $$POSTGRES_DB -U $$POSTGRES_USER
+      interval: 2s
+      timeout: 5s
+      start_period: 2s
+
+  gotenberg:
+    image: thecodingmachine/gotenberg:7.8
+    healthcheck:
+      test: curl --fail http://127.0.0.1:3000/health || exit 1
+      interval: 5s
+      timeout: 30s
+      retries: 3
+      start_period: 2s
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 500ms
+      timeout: 1s
+
+  minio:
+    image: minio/minio:RELEASE.2021-06-09T18-51-39Z
+    command: [ "minio", "server", "/home/shared" ]
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 5s
+      timeout: 20s
+      retries: 3
+    environment:
+      MINIO_ACCESS_KEY: ${AWS_KEY:?Provide access key to env}
+      MINIO_SECRET_KEY: ${AWS_SECRET:?Provide secret key to env}

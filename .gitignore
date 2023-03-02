@@ -1,0 +1,11 @@
+.idea
+vendor
+.DS_Store
+runtime
+rr*
+spiral*
+.env
+.app.env
+.phpunit.result.cache
+.deptrac.cache
+.docker/traefik/certs/*

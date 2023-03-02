@@ -1,0 +1,84 @@
+version: "3.8"
+
+services:
+  application:
+    build:
+      target: app_php_dev
+    volumes:
+      - ./app:/app/app
+      - ./vendor:/app/vendor
+      - ./runtime:/app/runtime
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.application-http.entrypoints=web"
+      - "traefik.http.routers.application-http.rule=Host(`podlodka.localhost`)"
+      - "traefik.http.routers.application-http.middlewares=application"
+      - "traefik.http.services.application.loadbalancer.server.port=8090"
+      - "traefik.http.middlewares.application.redirectscheme.scheme=https"
+      - "traefik.http.routers.application.entrypoints=websecure"
+      - "traefik.http.routers.application.rule=Host(`podlodka.localhost`)"
+      - "traefik.http.routers.application.tls=true"
+  cron:
+    build:
+      target: app_php_dev
+    volumes:
+      - ./app:/app/app
+      - ./vendor:/app/vendor
+      - ./runtime:/app/runtime
+
+  minio:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio-http.entrypoints=web"
+      - "traefik.http.routers.minio-http.rule=Host(`s3.podlodka.localhost`)"
+      - "traefik.http.routers.minio-http.middlewares=minio-https"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.minio-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.minio.entrypoints=websecure"
+      - "traefik.http.routers.minio.rule=Host(`s3.podlodka.localhost`)"
+      - "traefik.http.routers.minio.tls=true"
+
+  mailhog:
+    image: "mailhog/mailhog"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailhog-http.entrypoints=web"
+      - "traefik.http.routers.mailhog-http.rule=Host(`mail.podlodka.localhost`)"
+      - "traefik.http.routers.mailhog-http.middlewares=mailhog-https"
+      - "traefik.http.services.mailhog.loadbalancer.server.port=8025"
+      - "traefik.http.middlewares.mailhog-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.mailhog.entrypoints=websecure"
+      - "traefik.http.routers.mailhog.rule=Host(`mail.podlodka.localhost`)"
+      - "traefik.http.routers.mailhog.tls=true"
+
+  postgres:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.db.entrypoints=postgres"
+      - "traefik.tcp.routers.db.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.db.tls=false"
+      - "traefik.tcp.services.db.loadBalancer.server.port=5432"
+      - "traefik.tcp.routers.db.service=db"
+
+
+  reverse-proxy:
+    image: traefik:v2.6
+    command:
+      - "--accesslog"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.postgres.address=:5432"
+      - "--providers.file.directory=/configuration/"
+      - "--providers.file.watch=true"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8082:8080"
+      - "5432:5432"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.docker/traefik/configuration:/configuration/
+      - ./.docker/traefik/certs:/etc/certs:ro

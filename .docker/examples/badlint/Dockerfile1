@@ -1,0 +1,86 @@
+FROM alpine:3.9
+
+EXPOSE 9000
+
+COPY /ssh /root/.ssh
+RUN chmod 600 /root/.ssh/id_rsa && mkdir -p /var/www/site.com
+WORKDIR /var/www/site.com
+
+# ensure www-data user exists
+RUN set -x \
+	&& addgroup -g 1000 -S www-data \
+	&& adduser -u 1000 -D -S -G www-data www-data
+
+# make sure you can use HTTPS
+RUN apk add --update --no-cache ca-certificates vim nano git unzip curl bash parallel
+
+# Install all package
+RUN apk add --update --no-cache \
+    php7 php7-common php7-fpm php7-dev php7-xdebug php7-imagick \
+    php7-mbstring php7-json php7-ctype php7-phar php7-intl \
+    php7-bcmath php7-calendar php7-curl php7-dba php7-pgsql \
+    php7-exif php7-fileinfo php7-ftp php7-gd php7-gettext php7-iconv php7-imap \
+    php7-ldap php7-sockets php7-tokenizer php7-soap \
+    php7-opcache php7-openssl php7-tidy php7-xml php7-simplexml \
+    php7-pdo php7-pdo_mysql php7-pdo_pgsql php7-pdo_sqlite php7-sqlite3 \
+    php7-xmlreader php7-xmlwriter php7-xsl php7-zip php7-zlib php7-session \
+    autoconf file g++ gcc libc-dev make pkgconf re2c php7-dev php7-pear \
+    yaml-dev pcre-dev zlib-dev cyrus-sasl-dev
+
+ENV PHP_INI_DIR /etc/php7
+
+# Install additional extension
+RUN apk add --update --no-cache \
+    linux-headers
+
+RUN phpize -v \
+    #hot fix of pecl
+    && sed -i 's|$PHP -C -n -q |$PHP -C -q |' /usr/bin/pecl \
+    && pecl install grpc protobuf \
+    && echo "extension=grpc" > $PHP_INI_DIR/conf.d/20_grpc.ini \
+    && echo "extension=protobuf" > $PHP_INI_DIR/conf.d/20_protobuf.ini
+
+# Cleaning
+#RUN apk del autoconf file g++ gcc libc-dev make pkgconf re2c \
+#    yaml-dev pcre-dev zlib-dev libmemcached-dev cyrus-sasl-dev \
+
+RUN rm -rf /var/cache/apk/* /var/tmp/* /tmp/* \
+    && ln -snf /usr/bin/php7 /usr/bin/php
+
+ARG TIMEZONE=UTC
+
+# Set timezone
+RUN ln -snf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && echo ${TIMEZONE} > /etc/timezone \
+ && printf '[PHP]\ndate.timezone = "%s"\n', ${TIMEZONE} > $PHP_INI_DIR/conf.d/tzone.ini \
+ && date
+COPY www.conf $PHP_INI_DIR/php-fpm.d/www.conf
+
+# Install composer
+RUN curl -sS https://getcomposer.org/installer | php7 -- --install-dir=/usr/local/bin --filename=composer
+
+## Set xDebug
+ARG XDEBUG_STATE=Off
+ARG XDEBUG_PORT=9005
+
+RUN echo "zend_extension=xdebug.so" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.remote_enable=$XDEBUG_STATE" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo 'xdebug.remote_autostart=Off' >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo 'xdebug.idekey=PHPSTORM' >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo 'xdebug.remote_host=host.docker.internal' >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo 'xdebug.remote_handler=dbgp' >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.remote_port=$XDEBUG_PORT" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.profiler_enable=Off" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.profiler_enable_trigger=$XDEBUG_STATE" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.profiler_enable_trigger_value=prof" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.profiler_output_dir=/var/www/site.com/logs/php/profiler" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.auto_trace=Off" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.trace_enable_trigger=$XDEBUG_STATE" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.trace_enable_trigger_value=trace" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.trace_output_dir=/var/www/site.com/logs/php/tracer" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.collect_assignments=Off" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.trace_format=On" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+    && echo "xdebug.collect_params=1" >> $PHP_INI_DIR/conf.d/xdebug.ini \
+## Disable xDebug for none local builds
+    && sh -c "if [[ $XDEBUG_STATE = 'Off' ]] ; then sed -i '1s/^/;/' $PHP_INI_DIR/conf.d/xdebug.ini ; fi"
+
+CMD ["php-fpm7"]

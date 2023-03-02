@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  minio:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio-http.entrypoints=web"
+      - "traefik.http.routers.minio-http.rule=Host(`s3.podlodka.localhost`)"
+      - "traefik.http.routers.minio-http.middlewares=minio-https"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.minio-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.minio.entrypoints=websecure"
+      - "traefik.http.routers.minio.rule=Host(`s3.podlodka.localhost`)"
+      - "traefik.http.routers.minio.tls=true"

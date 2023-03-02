@@ -1,0 +1,18 @@
+## Ignore all
+*
+
+## Except
+!/app
+!/public
+!app.php
+!composer.json
+!composer.lock
+!.rr.yaml
+!.docker/php/config/*
+
+# Ignore unnecessary files inside allowed directories
+# This should go after the allowed directories
+**/*~
+**/*.log
+**/.DS_Store
+**/Thumbs.db

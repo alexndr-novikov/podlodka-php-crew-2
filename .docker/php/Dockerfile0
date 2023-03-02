@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.4
+FROM php:8.2-cli-alpine3.17
+
+COPY --from=mlocati/php-extension-installer:latest --link /usr/bin/install-php-extensions /usr/local/bin/
+RUN  install-php-extensions opcache zip xsl dom exif intl pcntl sockets && \
+     apk del --no-cache  ${PHPIZE_DEPS} ${BUILD_DEPENDS}
+
+WORKDIR /app
+
+ENV COMPOSER_HOME="/tmp/composer"
+
+COPY --from=composer:2.3 /usr/bin/composer /usr/bin/composer
+COPY ./composer.* .
+
+RUN composer config --no-plugins allow-plugins.spiral/composer-publish-plugin false && \
+    composer install --no-cache --no-ansi --no-autoloader --no-scripts --no-dev
+
+COPY --from=spiralscout/roadrunner:latest /usr/bin/rr /app
+
+COPY ./ .
+# check .dockerignore!
+
+RUN set -x \
+    && composer dump-autoload -n --optimize \
+    && chmod -R 777 ${COMPOSER_HOME}/cache \
+    && php app.php configure

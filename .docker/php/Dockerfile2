@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1.4
+FROM php:8.2-cli-alpine3.17 as app_php
+
+RUN  --mount=type=bind,from=mlocati/php-extension-installer:1.5,source=/usr/bin/install-php-extensions,target=/usr/local/bin/install-php-extensions \
+     apk update && \
+      install-php-extensions opcache zip xsl dom exif intl pcntl bcmath sockets && \
+     apk del --no-cache  ${PHPIZE_DEPS} ${BUILD_DEPENDS} && \
+     wget -q "https://github.com/aptible/supercronic/releases/download/v0.2.1/supercronic-linux-arm64" \
+                  -O /usr/bin/supercronic \
+             && chmod +x /usr/bin/supercronic \
+             && mkdir /etc/supercronic \
+             && echo '*/1 * * * * php /app/app.php cron-task foo --times=20' > /etc/supercronic/podlodka
+
+WORKDIR /app
+
+ARG UID=1000
+ARG GID=1000
+
+
+RUN addgroup -g ${GID} -S podlodka && adduser --uid ${UID} --ingroup podlodka -S -g podlodka podlodka && \
+    mkdir -p /home/podlodka/Downloads /app \
+    && chown -R podlodka:podlodka /home/podlodka \
+    && chown -R podlodka:podlodka /app
+
+USER podlodka
+
+ENV COMPOSER_HOME="/tmp/composer"
+
+COPY --chown=podlodka:podlodka --from=composer:2.3 /usr/bin/composer /usr/bin/composer
+COPY --chown=podlodka:podlodka ./composer.* .
+
+RUN composer config --no-plugins allow-plugins.spiral/composer-publish-plugin false && \
+    composer install --no-cache --no-ansi --no-autoloader --no-scripts --no-dev
+
+COPY --chown=podlodka:podlodka --from=spiralscout/roadrunner:latest /usr/bin/rr /app
+
+COPY --chown=podlodka:podlodka ./ .
+
+RUN set -x \
+    && composer dump-autoload -n --optimize \
+    && chmod -R 777 ${COMPOSER_HOME}/cache \
+    && php app.php configure
+
+
+FROM app_php as app_php_dev
+USER root
+RUN  --mount=type=bind,from=mlocati/php-extension-installer:1.5,source=/usr/bin/install-php-extensions,target=/usr/local/bin/install-php-extensions \
+      install-php-extensions xdebug && \
+     apk del --no-cache  ${PHPIZE_DEPS} ${BUILD_DEPENDS}
+
+COPY .docker/php/config/dev.ini /usr/local/etc/php/conf.d/
+
+USER podlodka

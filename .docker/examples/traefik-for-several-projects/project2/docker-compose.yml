@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+
+  mailhog:
+    image: "mailhog/mailhog"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailhog-http.entrypoints=web"
+      - "traefik.http.routers.mailhog-http.rule=Host(`mail.podlodka.localhost`)"
+      - "traefik.http.routers.mailhog-http.middlewares=mailhog-https"
+      - "traefik.http.services.mailhog.loadbalancer.server.port=8025"
+      - "traefik.http.middlewares.mailhog-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.mailhog.entrypoints=websecure"
+      - "traefik.http.routers.mailhog.rule=Host(`mail.podlodka.localhost`)"
+      - "traefik.http.routers.mailhog.tls=true"
