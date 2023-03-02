@@ -2,7 +2,7 @@
 SHELL = /bin/bash
 
 init:
-	cp .env.sample .env && cp .app.env.sample .app.env &&  make tls && docker-compose -f docker-compose.yml up -d && docker-compose cp cron:/app/vendor . && make up
+	cp .env.sample .env && cp .app.env.sample .app.env &&  make tls && docker-compose -f docker-compose.yml up -d --build && docker-compose cp cron:/app/vendor . && make up
 tls:
 	mkcert -cert-file .docker/traefik/certs/local-cert.pem -key-file .docker/traefik/certs/local-key.pem "podlodka.localhost" "*.podlodka.localhost" && mkcert -install
 up:
@@ -16,11 +16,13 @@ blint1:
 blint2:
 	 docker run --rm -i hadolint/hadolint < .docker/examples/badlint/Dockerfile1
 dive:
-	dive podlodka-php:latest
+	dive crew-cron:latest
 trivy:
-	trivy image podlodka-php:latest
-cron:
-	docker-compose exec -it cron sh
+	trivy image crew-cron:latest
+mail:
+	docker-compose exec cron php app.php mail Name
+pdf:
+	docker-compose exec cron php app.php pdf https://wikipedia.org
 target1:
 	docker build --target=app_php --tag=crew:0.0.1 -f .docker/php/Dockerfile .
 target2:
