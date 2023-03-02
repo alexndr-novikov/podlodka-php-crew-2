@@ -8,4 +8,5 @@ spiral*
 .app.env
 .phpunit.result.cache
 .deptrac.cache
-.docker/traefik/certs/*
+.docker/traefik/certs/local-cert.pem
+.docker/traefik/certs/local-key.pem
